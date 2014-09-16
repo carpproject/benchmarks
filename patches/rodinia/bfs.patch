@@ -1,0 +1,30 @@
+diff --git a/opencl/bfs/bfs.cpu b/opencl/bfs/bfs.cpp
+--- a/opencl/bfs/bfs.cpp	2013-02-23 00:57:09.000000000 +0000
++++ b/opencl/bfs/bfs.cpp	2014-09-17 15:21:43.000000000 +0100
+@@ -13,6 +13,8 @@
+ #include "CLHelper.h"
+ #include "util.h"
+ 
++#include "measure-time.h"
++
+ #define MAX_THREADS_PER_BLOCK 256
+ 
+ //Structure to hold a node information
+@@ -262,7 +264,9 @@
+ 		h_cost_ref[source]=0;		
+ 		//---------------------------------------------------------
+ 		//--gpu entry
++		START_MEASURE_TIME
+ 		run_bfs_gpu(no_of_nodes,h_graph_nodes,edge_list_size,h_graph_edges, h_graph_mask, h_updating_graph_mask, h_graph_visited, h_cost);	
++		STOP_MEASURE_TIME
+ 		//---------------------------------------------------------
+ 		//--cpu entry
+ 		// initalize the memory again
+@@ -284,6 +288,7 @@
+ 		free(h_graph_mask);
+ 		free(h_updating_graph_mask);
+ 		free(h_graph_visited);
++		PRINT_TIME
+ 
+ 	}
+ 	catch(std::string msg){

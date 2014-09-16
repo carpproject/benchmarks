@@ -1,0 +1,507 @@
+From 22ee6a05fdccf7040943ee823a6bf813bac781c0 Mon Sep 17 00:00:00 2001
+From: Alexey Kravets <alexey.kravets@arm.com>
+Date: Tue, 16 Sep 2014 13:56:10 +0100
+Subject: [PATCH 1/2] Validation cases support.
+
+---
+ src/common/PencilStencil.cpp                  | 80 +++++++++++++++++++++++++++
+ src/common/PencilStencil.h                    | 18 ++++++
+ src/common/PencilStencilFactory.cpp           | 23 ++++++++
+ src/common/PencilStencilFactory.h             | 18 ++++++
+ src/opencl/common/main.cpp                    |  1 +
+ src/opencl/level1/sort/Sort.cpp               | 13 +++++
+ src/opencl/level1/spmv/Spmv.cpp               | 57 +++++++++++--------
+ src/opencl/level1/stencil2d/Makefile.am       | 13 ++++-
+ src/opencl/level1/stencil2d/Makefile.in       | 16 ++++--
+ src/opencl/level1/stencil2d/Stencil2Dmain.cpp | 14 ++++-
+ 10 files changed, 223 insertions(+), 30 deletions(-)
+ create mode 100644 src/common/PencilStencil.cpp
+ create mode 100644 src/common/PencilStencil.h
+ create mode 100644 src/common/PencilStencilFactory.cpp
+ create mode 100644 src/common/PencilStencilFactory.h
+
+diff --git a/src/common/PencilStencil.cpp b/src/common/PencilStencil.cpp
+new file mode 100644
+index 0000000..0274351
+--- /dev/null
++++ b/src/common/PencilStencil.cpp
+@@ -0,0 +1,80 @@
++#include "PencilStencil.h"
++#include "pencil_runtime.h"
++#include <iostream>
++#include <string.h>
++
++extern "C" {
++
++void pencil_stencil_double(unsigned int nIter, unsigned int nRows, unsigned int nPaddedColumns,
++                           unsigned int nColumns, double  * data,
++                           double center, double cardinal, double diagonal);
++void pencil_stencil_float(unsigned int nIter, unsigned int nRows, unsigned int nPaddedColumns,
++                          unsigned int nColumns, float  * data,
++                          float center, float cardinal, float diagonal);
++}
++
++template<class T>
++void
++pencil_stencil (unsigned int nIter, unsigned int nRows, unsigned int nPaddedColumns,
++                unsigned int nColumns, T  * data,
++                T center, T cardinal, T diagonal);
++
++template<>
++void
++pencil_stencil (unsigned int nIter, unsigned int nRows, unsigned int nPaddedColumns,
++                unsigned int nColumns, double  * data,
++                double center, double cardinal, double diagonal)
++{
++    pencil_stencil_double(nIter, nRows, nPaddedColumns, nColumns, data,
++                          center, cardinal, diagonal);
++}
++
++template<>
++void
++pencil_stencil (unsigned int nIter, unsigned int nRows, unsigned int nPaddedColumns,
++                unsigned int nColumns, float  * data,
++                float center, float cardinal, float diagonal)
++{
++    pencil_stencil_float(nIter, nRows, nPaddedColumns, nColumns, data,
++                          center, cardinal, diagonal);
++}
++
++
++
++template<class T>
++void PencilStencil<T>::operator()(Matrix2D<T> & mtx, unsigned int nIter)
++{
++    pencil_init();
++    T * data = mtx.GetFlatData();
++    size_t nRows = mtx.GetNumRows();
++    size_t nPaddedColumns = mtx.GetNumPaddedColumns();
++    size_t nColumns = mtx.GetNumColumns();
++    size_t buff_size = nRows * nPaddedColumns;
++    size_t buff_size_raw = buff_size * sizeof(T);
++    T * buff = (T*)pencil_alloc(2 * buff_size_raw);
++
++    memcpy(buff, data, buff_size_raw);
++
++
++    for(int i = 0; i < nPaddedColumns; ++i)
++    {
++        buff[buff_size + i] = buff[i];
++        buff[2 * buff_size - i - 1] = buff[buff_size - i - 1];
++    }
++
++    for(int i = 0; i < nRows; ++i)
++    {
++        buff[buff_size + i * nPaddedColumns] = buff[i * nPaddedColumns];
++        buff[buff_size + i * nPaddedColumns + nColumns - 1] = buff[i * nPaddedColumns + nColumns - 1];
++    }
++
++    pencil_stencil(nIter, nRows, nPaddedColumns, nColumns, buff,
++                   this->wCenter, this->wCardinal,
++                   this->wDiagonal);
++
++    size_t offset = buff_size * (nIter % 2);
++
++    memcpy(data, buff + offset, buff_size_raw);
++    pencil_free(buff);
++    pencil_shutdown();
++}
+diff --git a/src/common/PencilStencil.h b/src/common/PencilStencil.h
+new file mode 100644
+index 0000000..dc7565c
+--- /dev/null
++++ b/src/common/PencilStencil.h
+@@ -0,0 +1,18 @@
++#ifndef PENCILSTENCIL_H
++#define PENCILSTENCIL_H
++
++#include "Stencil.h"
++
++template<class T>
++class PencilStencil: public Stencil<T>
++{
++    void DoPreIterationWork(Matrix2D<T> &, unsigned in) {}
++public:
++
++    PencilStencil(T center, T cardinal, T diagonal):
++        Stencil<T>(center, cardinal, diagonal) {}
++
++    void operator()(Matrix2D<T> & mtx, unsigned int nIter);
++};
++
++#endif
+diff --git a/src/common/PencilStencilFactory.cpp b/src/common/PencilStencilFactory.cpp
+new file mode 100644
+index 0000000..c59728a
+--- /dev/null
++++ b/src/common/PencilStencilFactory.cpp
+@@ -0,0 +1,23 @@
++#include <iostream>
++#include "PencilStencilFactory.h"
++#include "PencilStencil.h"
++
++template<class T>
++Stencil<T>*
++PencilStencilFactory<T>::BuildStencil( const OptionParser& options )
++{
++    T wCenter;
++    T wCardinal;
++    T wDiagonal;
++    StencilFactory<T>::ExtractOptions( options, wCenter, wCardinal, wDiagonal );
++
++    return new PencilStencil<T>( wCenter, wCardinal, wDiagonal );
++}
++
++
++template<class T>
++void
++PencilStencilFactory<T>::CheckOptions( const OptionParser& options ) const
++{
++    StencilFactory<T>::CheckOptions( options );
++}
+diff --git a/src/common/PencilStencilFactory.h b/src/common/PencilStencilFactory.h
+new file mode 100644
+index 0000000..0ecbaae
+--- /dev/null
++++ b/src/common/PencilStencilFactory.h
+@@ -0,0 +1,18 @@
++#ifndef PENCILSTENCILFACTORY_H
++#define PENCILSTENCILFACTORY_H
++
++#include "StencilFactory.h"
++
++template<class T>
++class PencilStencilFactory: public StencilFactory<T>
++{
++public:
++    PencilStencilFactory( void )
++      : StencilFactory<T>( "PencilStencil" )
++    {}
++
++    virtual Stencil<T>* BuildStencil( const OptionParser& options );
++    virtual void CheckOptions( const OptionParser& options ) const;
++};
++
++#endif
+diff --git a/src/opencl/common/main.cpp b/src/opencl/common/main.cpp
+index 390be86..e00eeef 100644
+--- a/src/opencl/common/main.cpp
++++ b/src/opencl/common/main.cpp
+@@ -89,6 +89,7 @@ int main(int argc, char *argv[])
+         op.addOption("platform", OPT_INT, "0", "specify OpenCL platform to use",
+                 'p');
+         op.addOption("device", OPT_VECINT, "", "specify device(s) to run on", 'd');
++        op.addOption("pencil", OPT_BOOL, "", "use PENCIL version");
+         op.addOption("passes", OPT_INT, "10", "specify number of passes", 'n');
+         op.addOption("size", OPT_VECINT, "1", "specify problem size", 's');
+         op.addOption("infoDevices", OPT_BOOL, "",
+diff --git a/src/opencl/level1/sort/Sort.cpp b/src/opencl/level1/sort/Sort.cpp
+index 13bb5e4..ca0e162 100644
+--- a/src/opencl/level1/sort/Sort.cpp
++++ b/src/opencl/level1/sort/Sort.cpp
+@@ -129,7 +129,9 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+ {
+     int err = 0;
+ 
++	double total_time = 0.0;
+     // Program Setup
++	int init_timer_id =  Timer::Start();
+     cl_program prog = clCreateProgramWithSource(ctx,
+                                                 1,
+                                                 &cl_source_sort,
+@@ -216,6 +218,9 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+     CL_CHECK_ERROR(err);
+ 
+     // Initialize host memory
++
++	total_time += Timer::Stop(init_timer_id, "Initialization");
++
+     cout << "Initializing host memory." << endl;
+     for (int i = 0; i < size; i++)
+     {
+@@ -228,6 +233,9 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+     const int num_digits = (int)pow((double)2, radix_width); // n possible digits
+ 
+     // Allocate device memory for input array
++
++	init_timer_id = Timer::Start();
++
+     cl_mem d_idata = clCreateBuffer(ctx, CL_MEM_READ_WRITE, bytes, NULL, &err);
+     CL_CHECK_ERROR(err);
+ 
+@@ -277,6 +285,8 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+     err = clSetKernelArg(bottom_scan, 4, local_wsize * 2 * sizeof(T), NULL);
+     CL_CHECK_ERROR(err);
+ 
++	total_time += Timer::Stop(init_timer_id, "Initialization2");
++
+     // Copy data to GPU
+     cout << "Copying input data to device." << endl;
+     Event evTransfer("PCIe transfer");
+@@ -382,6 +392,7 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+         double avgTime = total_sort;
+         double gbs = (double) (size * sizeof(T)) / (1000. * 1000. * 1000.);
+         sprintf(atts, "%d_items", size);
++		total_time += total_sort + totalTransfer;
+         resultDB.AddResult(testName, atts, "GB/s", gbs / (avgTime));
+         resultDB.AddResult(testName+"_PCIe", atts, "GB/s",
+                 gbs / (avgTime + totalTransfer));
+@@ -389,6 +400,8 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+                 totalTransfer / avgTime);
+     }
+ 
++	std::cout << "TOTAL_TIME: " << total_time << std::endl;
++
+     // Clean up device memory
+     err = clReleaseMemObject(d_idata);
+     CL_CHECK_ERROR(err);
+diff --git a/src/opencl/level1/spmv/Spmv.cpp b/src/opencl/level1/spmv/Spmv.cpp
+index 5eacda2..c5b9cfa 100644
+--- a/src/opencl/level1/spmv/Spmv.cpp
++++ b/src/opencl/level1/spmv/Spmv.cpp
+@@ -8,6 +8,8 @@
+ #include "Event.h"
+ #include "support.h"
+ 
++#include "measure-time.h"
++
+ using namespace std;
+ 
+ extern const char *cl_source_spmv;
+@@ -174,6 +176,29 @@ void ellPackTest(cl_device_id dev, cl_context ctx, string compileFlags,
+         compileFlags+=string(texflags);
+     }
+ 
++    int *h_rowLengths = new int[paddedSize];
++    int maxrl = 0;
++    for (int k=0; k<numRows; k++)
++    {
++        h_rowLengths[k] = h_rowDelimiters[k+1] - h_rowDelimiters[k];
++        if (h_rowLengths[k] > maxrl)
++        {
++            maxrl = h_rowLengths[k];
++        }
++    }
++    for (int p=numRows; p < paddedSize; p++)
++    {
++        h_rowLengths[p] = 0;
++    }
++
++    // Column major format host data structures
++    int cmSize = padded ? paddedSize : numRows;
++    floatType *h_valcm = new floatType[maxrl * cmSize];
++    int *h_colscm = new int[maxrl * cmSize];
++    convertToColMajor(h_val, h_cols, numRows, h_rowDelimiters, h_valcm,
++                              h_colscm, h_rowLengths, maxrl, padded);
++
++    START_MEASURE_TIME
+     // Set up OpenCL Program Object
+     int err = 0;
+     cl_program prog = clCreateProgramWithSource(ctx, 1, &cl_source_spmv, NULL,
+@@ -197,28 +222,6 @@ void ellPackTest(cl_device_id dev, cl_context ctx, string compileFlags,
+         return;
+     }
+ 
+-    int *h_rowLengths = new int[paddedSize];
+-    int maxrl = 0;
+-    for (int k=0; k<numRows; k++)
+-    {
+-        h_rowLengths[k] = h_rowDelimiters[k+1] - h_rowDelimiters[k];
+-        if (h_rowLengths[k] > maxrl)
+-        {
+-            maxrl = h_rowLengths[k];
+-        }
+-    }
+-    for (int p=numRows; p < paddedSize; p++)
+-    {
+-        h_rowLengths[p] = 0;
+-    }
+-
+-    // Column major format host data structures
+-    int cmSize = padded ? paddedSize : numRows;
+-    floatType *h_valcm = new floatType[maxrl * cmSize];
+-    int *h_colscm = new int[maxrl * cmSize];
+-    convertToColMajor(h_val, h_cols, numRows, h_rowDelimiters, h_valcm,
+-                              h_colscm, h_rowLengths, maxrl, padded);
+-
+     // Device data structures
+     cl_mem d_val, d_vec, d_out; // floating point
+     cl_mem d_cols, d_rowLengths; // integer
+@@ -380,6 +383,10 @@ void ellPackTest(cl_device_id dev, cl_context ctx, string compileFlags,
+     err = clReleaseMemObject(d_cols);
+     CL_CHECK_ERROR(err);
+ 
++    STOP_MEASURE_TIME
++    printf("ELLPACKR ");
++    PRINT_TIME
++
+     // Free host memory
+     delete[] h_rowLengths;
+     delete[] h_valcm;
+@@ -430,6 +437,8 @@ void csrTest(cl_device_id dev, cl_context ctx, string compileFlags,
+     // Set up OpenCL Program Object
+     int err = 0;
+ 
++    START_MEASURE_TIME
++
+     cl_program prog = clCreateProgramWithSource(ctx, 1, &cl_source_spmv, NULL,
+             &err);
+     CL_CHECK_ERROR(err);
+@@ -726,6 +735,10 @@ void csrTest(cl_device_id dev, cl_context ctx, string compileFlags,
+       CL_CHECK_ERROR(err);
+       err = clReleaseProgram(prog);
+       CL_CHECK_ERROR(err);
++
++      STOP_MEASURE_TIME
++      printf("CSR ");
++      PRINT_TIME
+ }
+ 
+ // ****************************************************************************
+diff --git a/src/opencl/level1/stencil2d/Makefile.am b/src/opencl/level1/stencil2d/Makefile.am
+index fcb5532..4b6db77 100644
+--- a/src/opencl/level1/stencil2d/Makefile.am
++++ b/src/opencl/level1/stencil2d/Makefile.am
+@@ -10,8 +10,8 @@ include $(top_builddir)/config/targets.mk
+ VPATH = $(srcdir):$(srcdir)/../../common:$(srcdir)/../../../common
+ 
+ AM_LDFLAGS = $(OCL_LDFLAGS)
+-CPPFLAGS += $(OCL_CPPFLAGS)
+-L1LIBS = $(OCL_LIBS) $(LIBS)
++CPPFLAGS += $(OCL_CPPFLAGS) -I$(PENCIL_RUNTIME) -I$(PENCIL_RUNTIME)/opencl-opt
++L1LIBS = $(OCL_LIBS) $(LIBS) -L$(PENCIL_RUNTIME)/lib -locl_pencil
+ 
+ # what is the destination for programs built from this directory?
+ serialopencldir = $(bindir)/Serial/OpenCL
+@@ -26,5 +26,12 @@ Stencil2D_SOURCES = Stencil2Dmain.cpp \
+ 				CommonOpenCLStencilFactory.cpp \
+ 				stencil2d_cl.cpp \
+                 main.cpp
+-Stencil2D_LDADD   = $(L1LIBS)
++Stencil2D_LDADD   = $(L1LIBS) ocl_utilities.o stencil_host.o
++
++
++stencil_host.o: stencil_host.c
++	${CC} ${CPPFLAGS} -std=c99 ${CXXFLAGS} -o $@ $^ -D__pencil_assume= -c
++
++ocl_utilities.o: ocl_utilities.c
++	${CC} ${CXXFLAGS} -o $@ $^ -c
+ 
+diff --git a/src/opencl/level1/stencil2d/Makefile.in b/src/opencl/level1/stencil2d/Makefile.in
+index a5a318c..7d77ddd 100644
+--- a/src/opencl/level1/stencil2d/Makefile.in
++++ b/src/opencl/level1/stencil2d/Makefile.in
+@@ -54,7 +54,8 @@ am_Stencil2D_OBJECTS = Stencil2Dmain.$(OBJEXT) OpenCLStencil.$(OBJEXT) \
+ Stencil2D_OBJECTS = $(am_Stencil2D_OBJECTS)
+ am__DEPENDENCIES_1 =
+ am__DEPENDENCIES_2 = $(am__DEPENDENCIES_1)
+-Stencil2D_DEPENDENCIES = $(am__DEPENDENCIES_2)
++Stencil2D_DEPENDENCIES = $(am__DEPENDENCIES_2) ocl_utilities.o \
++	stencil_host.o
+ DEFAULT_INCLUDES = -I.@am__isrc@ -I$(top_builddir)/config
+ depcomp = $(SHELL) $(top_srcdir)/build-aux/depcomp
+ am__depfiles_maybe = depfiles
+@@ -122,7 +123,8 @@ BIBTEX = @BIBTEX@
+ CC = @CC@
+ CCDEPMODE = @CCDEPMODE@
+ CFLAGS = @CFLAGS@
+-CPPFLAGS = @CPPFLAGS@ $(OCL_CPPFLAGS)
++CPPFLAGS = @CPPFLAGS@ $(OCL_CPPFLAGS) -I$(PENCIL_RUNTIME) \
++	-I$(PENCIL_RUNTIME)/opencl-opt
+ CUDA_CPPFLAGS = @CUDA_CPPFLAGS@
+ CUDA_INCDIR = @CUDA_INCDIR@
+ CXX = @CXX@
+@@ -231,7 +233,7 @@ top_srcdir = @top_srcdir@
+ @BUILD_MPI_TRUE@MAYBE_MPI = tpmpi
+ SUBDIRS = $(MAYBE_MPI)
+ AM_LDFLAGS = $(OCL_LDFLAGS)
+-L1LIBS = $(OCL_LIBS) $(LIBS)
++L1LIBS = $(OCL_LIBS) $(LIBS) -L$(PENCIL_RUNTIME)/lib -locl_pencil
+ 
+ # what is the destination for programs built from this directory?
+ serialopencldir = $(bindir)/Serial/OpenCL
+@@ -244,7 +246,7 @@ Stencil2D_SOURCES = Stencil2Dmain.cpp \
+ 				stencil2d_cl.cpp \
+                 main.cpp
+ 
+-Stencil2D_LDADD = $(L1LIBS)
++Stencil2D_LDADD = $(L1LIBS) ocl_utilities.o stencil_host.o
+ all: all-recursive
+ 
+ .SUFFIXES:
+@@ -664,6 +666,12 @@ uninstall-am: uninstall-serialopenclPROGRAMS
+ include $(top_builddir)/config/config.mk
+ include $(top_builddir)/config/targets.mk
+ 
++stencil_host.o: stencil_host.c
++	${CC} ${CPPFLAGS} -std=c99 ${CXXFLAGS} -o $@ $^ -D__pencil_assume= -c
++
++ocl_utilities.o: ocl_utilities.c
++	${CC} ${CPPFLAGS} -o $@ $^ -c
++
+ # Tell versions [3.59,3.63) of GNU make to not export all variables.
+ # Otherwise a system limit (for SysV at least) may be exceeded.
+ .NOEXPORT:
+diff --git a/src/opencl/level1/stencil2d/Stencil2Dmain.cpp b/src/opencl/level1/stencil2d/Stencil2Dmain.cpp
+index a4f37b0..d11d87f 100644
+--- a/src/opencl/level1/stencil2d/Stencil2Dmain.cpp
++++ b/src/opencl/level1/stencil2d/Stencil2Dmain.cpp
+@@ -23,6 +23,7 @@
+ #include "SerialStencilUtil.cpp"
+ #include "StencilFactory.cpp"
+ #include "CommonOpenCLStencilFactory.cpp"
++#include "PencilStencil.cpp"
+ #include "HostStencil.cpp"
+ #include "OpenCLStencil.cpp"
+ 
+@@ -35,6 +36,7 @@
+ #include "MPIStencilUtil.cpp"
+ #include "MPI2DGridProgram.cpp"
+ #else
++#include "PencilStencilFactory.cpp"
+ #include "HostStencilFactory.cpp"
+ #include "OpenCLStencilFactory.cpp"
+ #endif // defined(PARALLEL)
+@@ -69,7 +71,14 @@ DoTest( std::string testName,
+         testStencilFactory = new MPIOpenCLStencilFactory<T>( dev, ctx, queue );
+ #else
+         stdStencilFactory = new HostStencilFactory<T>;
+-        testStencilFactory = new OpenCLStencilFactory<T>( dev, ctx, queue );
++        if (opts.getOptionBool("pencil"))
++        {
++            testStencilFactory = new PencilStencilFactory<T>;
++        }
++        else
++        {
++            testStencilFactory = new OpenCLStencilFactory<T>( dev, ctx, queue);
++        }
+ #endif // defined(PARALLEL)
+         assert( (stdStencilFactory != NULL) && (testStencilFactory != NULL) );
+ 
+@@ -271,6 +280,7 @@ DoTest( std::string testName,
+         std::cout << "At the end of each pass the number of validation\nerrors observed will be printed to the standard output."
+             << std::endl;
+ #endif // !defined(PARALLEL)
++        double total_time = 0;
+         for( unsigned int pass = 0; pass < nPasses; pass++ )
+         {
+ #if !defined(PARALLEL)
+@@ -282,6 +292,7 @@ DoTest( std::string testName,
+             int timerHandle = Timer::Start();
+             (*testStencil)( data, nIters );
+             double elapsedTime = Timer::Stop( timerHandle, "OpenCL stencil" );
++            total_time += elapsedTime;
+ 
+ 
+             // find and report the computation rate
+@@ -309,6 +320,7 @@ DoTest( std::string testName,
+                             valErrThreshold,
+                             nValErrsToPrint );
+         }
++        std::cout << "TOTAL_TIME: " << total_time << std::endl;
+     }
+     catch( ... )
+     {
+-- 
+2.0.0
+

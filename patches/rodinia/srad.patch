@@ -1,0 +1,312 @@
+diff --git a/opencl/srad/kernel/kernel_gpu_opencl_wrapper.c b/opencl/srad/kernel/kernel_gpu_opencl_wrapper.c
+index 4a91c36..ce8366f 100755
+--- a/opencl/srad/kernel/kernel_gpu_opencl_wrapper.c
++++ b/opencl/srad/kernel/kernel_gpu_opencl_wrapper.c
+opencl/srad/@@ -45,7 +45,7 @@ void
+ kernel_gpu_opencl_wrapper(	fp* image,											// input image
+ 							int Nr,												// IMAGE nbr of rows
+ 							int Nc,												// IMAGE nbr of cols
+-							long Ne,											// IMAGE nbr of elem
++							cl_long Ne,											// IMAGE nbr of elem
+ 							int niter,											// nbr of iterations
+ 							fp lambda,											// update step size
+ 							long NeROI,											// ROI nbr of elements
+@@ -178,7 +178,7 @@ kernel_gpu_opencl_wrapper(	fp* image,											// input image
+ 	//====================================================================================================100
+ 
+ 	// Load kernel source code from file
+-	const char *source = load_kernel_source("./kernel/kernel_gpu_opencl.cl");
++	const char *source = load_kernel_source("kernel_gpu_opencl.cl");
+ 	size_t sourceSize = strlen(source);
+ 
+ 	// Create the program
+@@ -190,39 +190,16 @@ kernel_gpu_opencl_wrapper(	fp* image,											// input image
+ 	if (error != CL_SUCCESS) 
+ 		fatal_CL(error, __LINE__);
+ 
+-  char clOptions[150];
+-//  sprintf(clOptions,"-I../../src");                                                    
+-  sprintf(clOptions,"-I.");
+-#ifdef RD_WG_SIZE
+-  sprintf(clOptions + strlen(clOptions), " -DRD_WG_SIZE=%d", RD_WG_SIZE);
+-#endif
+-#ifdef RD_WG_SIZE_0
+-  sprintf(clOptions + strlen(clOptions), " -DRD_WG_SIZE_0=%d", RD_WG_SIZE_0);
+-#endif
+-#ifdef RD_WG_SIZE_0_0
+-  sprintf(clOptions + strlen(clOptions), " -DRD_WG_SIZE_0_0=%d", RD_WG_SIZE_0_0);
+-#endif
+-
+ 	// Compile the program
++#define MAX_BUILD_OPTIONS 200
++char build_options[MAX_BUILD_OPTIONS];
++        snprintf(build_options, MAX_BUILD_OPTIONS, " -I./ -DNUMBER_THREADS=%d  ", NUMBER_THREADS);
+ 	error = clBuildProgram(	program, 
+ 							1, 
+ 							&device, 
+-							clOptions, 
++							build_options,
+ 							NULL, 
+ 							NULL);
+-	// Print warnings and errors from compilation
+-	static char log[65536]; 
+-	memset(log, 0, sizeof(log));
+-	clGetProgramBuildInfo(	program, 
+-							device, 
+-							CL_PROGRAM_BUILD_LOG, 
+-							sizeof(log)-1, 
+-							log, 
+-							NULL);
+-	printf("-----OpenCL Compiler Output-----\n");
+-	if (strstr(log,"warning:") || strstr(log, "error:")) 
+-		printf("<<<<\n%s\n>>>>\n", log);
+-	printf("--------------------------------\n");
+ 	if (error != CL_SUCCESS) 
+ 		fatal_CL(error, __LINE__);
+ 
+@@ -540,7 +517,7 @@ kernel_gpu_opencl_wrapper(	fp* image,											// input image
+ 
+ 	error = clSetKernelArg(	extract_kernel, 
+ 							0, 
+-							sizeof(long), 
++							sizeof(cl_long),
+ 							(void *) &Ne);
+ 	if (error != CL_SUCCESS) 
+ 		fatal_CL(error, __LINE__);
+@@ -589,7 +566,7 @@ kernel_gpu_opencl_wrapper(	fp* image,											// input image
+ 
+ 	error = clSetKernelArg(	prepare_kernel, 
+ 							0, 
+-							sizeof(long), 
++							sizeof(cl_long),
+ 							(void *) &Ne);
+ 	if (error != CL_SUCCESS) 
+ 		fatal_CL(error, __LINE__);
+@@ -619,7 +596,7 @@ kernel_gpu_opencl_wrapper(	fp* image,											// input image
+ 	int blocks2_x;
+ 	int blocks2_work_size;
+ 	size_t global_work_size2[1];
+-	long no;
++	cl_long no;
+ 	int mul;
+ 	int mem_size_single = sizeof(fp) * 1;
+ 	fp total;
+@@ -631,7 +608,7 @@ kernel_gpu_opencl_wrapper(	fp* image,											// input image
+ 
+ 	error = clSetKernelArg(	reduce_kernel, 
+ 							0, 
+-							sizeof(long), 
++							sizeof(cl_long),
+ 							(void *) &Ne);
+ 	if (error != CL_SUCCESS) 
+ 		fatal_CL(error, __LINE__);
+@@ -672,7 +649,7 @@ kernel_gpu_opencl_wrapper(	fp* image,											// input image
+ 		fatal_CL(error, __LINE__);
+ 	error = clSetKernelArg(	srad_kernel, 
+ 							3, 
+-							sizeof(long), 
++							sizeof(cl_long),
+ 							(void *) &Ne);
+ 	if (error != CL_SUCCESS) 
+ 		fatal_CL(error, __LINE__);
+@@ -761,7 +738,7 @@ kernel_gpu_opencl_wrapper(	fp* image,											// input image
+ 		fatal_CL(error, __LINE__);
+ 	error = clSetKernelArg(	srad2_kernel, 
+ 							3, 
+-							sizeof(long), 
++							sizeof(cl_long),
+ 							(void *) &Ne);
+ 	if (error != CL_SUCCESS) 
+ 		fatal_CL(error, __LINE__);
+@@ -880,7 +857,7 @@ kernel_gpu_opencl_wrapper(	fp* image,											// input image
+ 			// set arguments that were uptaded in this loop
+ 			error = clSetKernelArg(	reduce_kernel, 
+ 									1, 
+-									sizeof(long), 
++									sizeof(cl_long),
+ 									(void *) &no);
+ 			if (error != CL_SUCCESS) 
+ 				fatal_CL(error, __LINE__);
+@@ -1037,7 +1014,7 @@ kernel_gpu_opencl_wrapper(	fp* image,											// input image
+ 
+ 	error = clSetKernelArg(	compress_kernel, 
+ 							0, 
+-							sizeof(long), 
++							sizeof(cl_long),
+ 							(void *) &Ne);
+ 	if (error != CL_SUCCESS) 
+ 		fatal_CL(error, __LINE__);
+diff --git a/opencl/srad/kernel/kernel_gpu_opencl_wrapper.h b/opencl/srad/kernel/kernel_gpu_opencl_wrapper.h
+index 95e53a8..9daf3a0 100755
+--- a/opencl/srad/kernel/kernel_gpu_opencl_wrapper.h
++++ b/opencl/srad/kernel/kernel_gpu_opencl_wrapper.h
+@@ -2,6 +2,8 @@
+ extern "C" {
+ #endif
+ 
++#include <CL/cl.h>									// for cl_long
++
+ //========================================================================================================================================================================================================200
+ //	KERNEL_GPU_CUDA_WRAPPER HEADER
+ //========================================================================================================================================================================================================200
+@@ -10,7 +12,7 @@ void
+ kernel_gpu_opencl_wrapper(	fp* image,											// input image
+ 							int Nr,												// IMAGE nbr of rows
+ 							int Nc,												// IMAGE nbr of cols
+-							long Ne,											// IMAGE nbr of elem
++							cl_long Ne,											// IMAGE nbr of elem
+ 							int niter,											// nbr of iterations
+ 							fp lambda,											// update step size
+ 							long NeROI,											// ROI nbr of elements
+diff --git a/opencl/srad/main.c b/opencl/srad/main.c
+index 07abf01..8dfa57b 100755
+--- a/opencl/srad/main.c
++++ b/opencl/srad/main.c
+@@ -38,6 +38,8 @@
+ 
+ #include "./kernel/kernel_gpu_opencl_wrapper.h"
+ 
++#include "measure-time.h"
++
+ //======================================================================================================================================================150
+ //	End
+ //======================================================================================================================================================150
+@@ -49,20 +51,10 @@
+ int 
+ main(	int argc, 
+ 		char* argv []){
+-  printf("WG size of kernel = %d \n", NUMBER_THREADS);
+ 	//======================================================================================================================================================150
+ 	// 	VARIABLES
+ 	//======================================================================================================================================================150
+ 
+-	// time
+-	long long time0;
+-	long long time1;
+-	long long time2;
+-	long long time3;
+-	long long time4;
+-	long long time5;
+-	long long time6;
+-
+ 	// inputs image, input paramenters
+ 	fp* image_ori;																// originalinput image
+ 	int image_ori_rows;
+@@ -97,8 +89,6 @@ main(	int argc,
+ 	int mem_size_i;
+ 	int mem_size_j;
+ 
+-	time0 = get_time();
+-
+ 	//======================================================================================================================================================150
+ 	//	INPUT ARGUMENTS
+ 	//======================================================================================================================================================150
+@@ -114,8 +104,6 @@ main(	int argc,
+ 		Nc = atoi(argv[4]);						// it is 458 in the original image
+ 	}
+ 
+-	time1 = get_time();
+-
+ 	//======================================================================================================================================================150
+ 	// 	READ INPUT FROM FILE
+ 	//======================================================================================================================================================150
+@@ -156,8 +144,6 @@ main(	int argc,
+ 	// 	End
+ 	//====================================================================================================100
+ 
+-	time2 = get_time();
+-
+ 	//======================================================================================================================================================150
+ 	// 	SETUP
+ 	//======================================================================================================================================================150
+@@ -195,12 +181,11 @@ main(	int argc,
+ 	jW[0]    = 0;															// changes IMAGE leftmost column index from -1 to 0
+ 	jE[Nc-1] = Nc-1;														// changes IMAGE rightmost column index from Nc to Nc-1
+ 
+-	time3= get_time();
+-
+ 	//======================================================================================================================================================150
+ 	// 	KERNEL
+ 	//======================================================================================================================================================150
+ 
++	START_MEASURE_TIME
+ 	kernel_gpu_opencl_wrapper(	image,											// input image
+ 								Nr,												// IMAGE nbr of rows
+ 								Nc,												// IMAGE nbr of cols
+@@ -216,7 +201,7 @@ main(	int argc,
+ 								mem_size_i,
+ 								mem_size_j);
+ 
+-	time4 = get_time();
++	STOP_MEASURE_TIME
+ 
+ 	//======================================================================================================================================================150
+ 	// 	WRITE OUTPUT IMAGE TO FILE
+@@ -228,8 +213,7 @@ main(	int argc,
+ 					Nc,
+ 					1,
+ 					255);
+-
+-	time5 = get_time();
++	PRINT_TIME
+ 
+ 	//======================================================================================================================================================150
+ 	// 	FREE MEMORY
+@@ -242,22 +226,10 @@ main(	int argc,
+ 	free(jW); 
+ 	free(jE);
+ 
+-	time6 = get_time();
+-
+ 	//======================================================================================================================================================150
+ 	//	DISPLAY TIMING
+ 	//======================================================================================================================================================150
+ 
+-	printf("Time spent in different stages of the application:\n");
+-	printf("%.12f s, %.12f % : READ COMMAND LINE PARAMETERS\n", 						(fp) (time1-time0) / 1000000, (fp) (time1-time0) / (fp) (time5-time0) * 100);
+-	printf("%.12f s, %.12f % : READ AND RESIZE INPUT IMAGE FROM FILE\n", 				(fp) (time2-time1) / 1000000, (fp) (time2-time1) / (fp) (time5-time0) * 100);
+-	printf("%.12f s, %.12f % : SETUP\n", 												(fp) (time3-time2) / 1000000, (fp) (time3-time2) / (fp) (time5-time0) * 100);
+-	printf("%.12f s, %.12f % : KERNEL\n", 												(fp) (time4-time3) / 1000000, (fp) (time4-time3) / (fp) (time5-time0) * 100);
+-	printf("%.12f s, %.12f % : WRITE OUTPUT IMAGE TO FILE\n", 							(fp) (time5-time4) / 1000000, (fp) (time5-time4) / (fp) (time5-time0) * 100);
+-	printf("%.12f s, %.12f % : FREE MEMORY\n", 											(fp) (time6-time5) / 1000000, (fp) (time6-time5) / (fp) (time5-time0) * 100);
+-	printf("Total time:\n");
+-	printf("%.12f s\n", 																(fp) (time5-time0) / 1000000);
+-
+ }
+ 
+ //========================================================================================================================================================================================================200
+diff --git a/opencl/srad/main.h b/opencl/srad/main.h
+index 90735d7..e138016 100755
+--- a/opencl/srad/main.h
++++ b/opencl/srad/main.h
+@@ -8,16 +8,7 @@
+ 
+ #define fp float
+ 
+-#ifdef RD_WG_SIZE_0_0
+-        #define NUMBER_THREADS RD_WG_SIZE_0_0
+-#elif defined(RD_WG_SIZE_0)
+-        #define NUMBER_THREADS RD_WG_SIZE_0
+-#elif defined(RD_WG_SIZE)
+-        #define NUMBER_THREADS RD_WG_SIZE
+-#else
+-        #define NUMBER_THREADS 256
+-#endif
+-
++#define NUMBER_THREADS 128
+ 
+ //====================================================================================================100
+ //	End
+diff --git a/opencl/srad/makefile b/opencl/srad/makefile
+index e40afb7..42085f7 100755
+--- a/opencl/srad/makefile
++++ b/opencl/srad/makefile
+@@ -28,7 +28,7 @@ OCL_LIB = -lOpenCL
+ 
+ ./main.o:	./main.h \
+ 			./main.c
+-	$(C_C)	$(KERNEL_DIM) ./main.c \
++	$(C_C)	${CFLAGS} $(KERNEL_DIM) ./main.c \
+ 			-c \
+ 			-o ./main.o \
+ 			-O3

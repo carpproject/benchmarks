@@ -1,0 +1,204 @@
+diff --git a/opencl/gaussian/gaussianElim.cpp b/opencl/gaussian/gaussianElim.cpp
+index 5f45666..7616395 100755
+--- a/opencl/gaussian/gaussianElim.cpp
++++ b/opencl/gaussian/gaussianElim.cpp
+@@ -4,40 +4,15 @@
+ #include "gaussianElim.h"
+ #include <math.h>
+ 
+-#ifdef RD_WG_SIZE_0_0
+-        #define BLOCK_SIZE_0 RD_WG_SIZE_0_0
+-#elif defined(RD_WG_SIZE_0)
+-        #define BLOCK_SIZE_0 RD_WG_SIZE_0
+-#elif defined(RD_WG_SIZE)
+-        #define BLOCK_SIZE_0 RD_WG_SIZE
+-#else
+-        #define BLOCK_SIZE_0 0
+-#endif
+-
+-//2D defines. Go from specific to general                                                
+-#ifdef RD_WG_SIZE_1_0
+-        #define BLOCK_SIZE_1_X RD_WG_SIZE_1_0
+-#elif defined(RD_WG_SIZE_1)
+-        #define BLOCK_SIZE_1_X RD_WG_SIZE_1
+-#elif defined(RD_WG_SIZE)
+-        #define BLOCK_SIZE_1_X RD_WG_SIZE
+-#else
+-        #define BLOCK_SIZE_1_X 0
+-#endif
++#include "measure-time.h"
+ 
+-#ifdef RD_WG_SIZE_1_1
+-        #define BLOCK_SIZE_1_Y RD_WG_SIZE_1_1
+-#elif defined(RD_WG_SIZE_1)
+-        #define BLOCK_SIZE_1_Y RD_WG_SIZE_1
+-#elif defined(RD_WG_SIZE)
+-        #define BLOCK_SIZE_1_Y RD_WG_SIZE
++#ifndef PENCIL_DRIVER
++cl_context context=NULL;
+ #else
+-        #define BLOCK_SIZE_1_Y 0
++void ForwardSub(int N,  float a[restrict const static N][N], float b[restrict const static N], float m[restrict const static N][N]);
+ #endif
+ 
+ 
+-cl_context context=NULL;
+-
+ // create both matrix and right hand side, Ke Wang 2013/08/12 11:51:06
+ void
+ create_matrix(float *m, int size){
+@@ -67,8 +42,6 @@ create_matrix(float *m, int size){
+ 
+ 
+ int main(int argc, char *argv[]) {
+-
+-  printf("WG size of kernel 1 = %d, WG size of kernel 2= %d X %d\n", BLOCK_SIZE_0, BLOCK_SIZE_1_X, BLOCK_SIZE_1_Y);
+     float *a=NULL, *b=NULL, *finalVec=NULL;
+     float *m=NULL;
+     int size = -1;
+@@ -85,8 +58,9 @@ int main(int argc, char *argv[]) {
+     printUsage();
+     return 0;
+     }
+-
++#ifndef PENCIL_DRIVER
+     context = cl_init_context(platform,device,quiet);
++#endif
+     
+     if(size < 1)
+       {
+@@ -133,15 +107,24 @@ int main(int argc, char *argv[]) {
+     InitPerRun(size,m);
+ 
+     //begin timing	
++    START_MEASURE_TIME
+         // printf("The result of array b is before run: \n");
+         // PrintAry(b, size);
+     
+     // run kernels
++#ifndef PENCIL_DRIVER
+ 	ForwardSub(context,a,b,m,size,timing);
++#else
++	 ForwardSub(size,a,b,m);
++#endif
+         // printf("The result of array b is after run: \n");
+         // PrintAry(b, size);
+     
+     //end timing
++    STOP_MEASURE_TIME
++
++    PRINT_TIME
++
+     if (!quiet) {
+         printf("The result of matrix m is: \n");
+         
+@@ -160,12 +143,15 @@ int main(int argc, char *argv[]) {
+     free(a);
+     free(b);
+     free(finalVec);
++#ifndef PENCIL_DRIVER
+     cl_cleanup();
++#endif
+   //OpenClGaussianElimination(context,timing);
+ 
+   return 0;
+ }
+ 
++#ifndef PENCIL_DRIVER
+ /*------------------------------------------------------
+  ** ForwardSub() -- Forward substitution of Gaussian
+  ** elimination.
+@@ -251,27 +237,10 @@ void ForwardSub(cl_context context, float *a, float *b, float *m, int size,int t
+     // 3. Determine block sizes
+     size_t globalWorksizeFan1[1];
+     size_t globalWorksizeFan2[2];
+-    size_t localWorksizeFan1Buf[1]={BLOCK_SIZE_0};
+-    size_t localWorksizeFan2Buf[2]={BLOCK_SIZE_1_X, BLOCK_SIZE_1_Y};
+-    size_t *localWorksizeFan1=NULL;
+-    size_t *localWorksizeFan2=NULL;
+-
+-        globalWorksizeFan1[0] = size;
+-        globalWorksizeFan2[0] = size;
+-        globalWorksizeFan2[1] = size;
+-
+-        if(localWorksizeFan1Buf[0]){
+-                localWorksizeFan1=localWorksizeFan1Buf;
+-                globalWorksizeFan1[0]=(int)ceil(globalWorksizeFan1[0]/(double)localWorks\
+-izeFan1Buf[0])*localWorksizeFan1Buf[0];
+-        }
+-        if(localWorksizeFan2Buf[0]){
+-                localWorksizeFan2=localWorksizeFan2Buf;
+-                globalWorksizeFan2[0]=(int)ceil(globalWorksizeFan2[0]/(double)localWorks\
+-izeFan2Buf[0])*localWorksizeFan2Buf[0];
+-                globalWorksizeFan2[1]=(int)ceil(globalWorksizeFan2[1]/(double)localWorks\
+-izeFan2Buf[1])*localWorksizeFan2Buf[1];
+-        }
++
++	globalWorksizeFan1[0] = size;
++	globalWorksizeFan2[0] = size;
++	globalWorksizeFan2[1] = size;
+ 
+ 	int t;
+ 	// 4. Setup and Run kernels
+@@ -289,7 +258,7 @@ izeFan2Buf[1])*localWorksizeFan2Buf[1];
+         // launch kernel
+         error = clEnqueueNDRangeKernel(
+                   command_queue,  fan1_kernel, 1, 0,
+-                  globalWorksizeFan1,localWorksizeFan1,
++                  globalWorksizeFan1,NULL,
+                   0, NULL, &kernelEvent);
+ 
+         cl_errChk(error,"ERROR in Executing Fan1 Kernel",true);
+@@ -400,7 +369,7 @@ float eventTime(cl_event event,cl_command_queue command_queue){
+ 
+     return (float)((eventEnd-eventStart)/1e9);
+ }
+-
++#endif
+  // Ke Wang add a function to generate input internally
+ int parseCommandline(int argc, char *argv[], char* filename,
+                      int *q, int *t, int *p, int *d, int *size){
+diff --git a/opencl/gaussian/gaussianElim.h b/opencl/gaussian/gaussianElim.h
+index a78f79a..5efc833 100755
+--- a/opencl/gaussian/gaussianElim.h
++++ b/opencl/gaussian/gaussianElim.h
+@@ -1,15 +1,21 @@
+ #ifndef _GAUSSIANELIM
+ #define _GAUSSIANELIM
+ 
++#ifndef PENCIL_DRIVER
+ #include <iostream>
+ #include <vector>
++#endif
+ #include <float.h>
+ #include <string.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#ifndef PENCIL_DRIVER
+ #include <algorithm>
++#endif
+ 
++#ifndef PENCIL_DRIVER
+ #include "clutils.h"
++#endif
+ 
+ // All OpenCL headers
+ #if defined (__APPLE__) || defined(MACOSX)
+@@ -27,7 +33,9 @@ int parseCommandline(int argc, char *argv[], char* filename,
+                      int *q, int *t, int *p, int *d, int *size);
+                      
+ void InitPerRun(int size,float *m);
++#ifndef PENCIL_DRIVER
+ void ForwardSub(cl_context context, float *a, float *b, float *m, int size,int timing);
++#endif
+ void BackSub(float *a, float *b, float *finalVec, int size);
+ void Fan1(float *m, float *a, int Size, int t);
+ void Fan2(float *m, float *a, float *b,int Size, int j1, int t);
+@@ -37,4 +45,7 @@ void InitAry(FILE *fp, float *ary, int ary_size);
+ void PrintMat(float *ary, int size, int nrow, int ncolumn);
+ void PrintAry(float *ary, int ary_size);
+ float eventTime(cl_event event,cl_command_queue command_queue);
++#ifdef PENCIL_DRIVER
++#define true 1
++#endif
+ #endif

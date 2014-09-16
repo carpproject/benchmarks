@@ -1,0 +1,44 @@
+From 9d0160a929b3fc2eb5616cf202ea27e762310631 Mon Sep 17 00:00:00 2001
+From: Alexey Kravets <alexey.kravets@arm.com>
+Date: Tue, 16 Sep 2014 15:25:49 +0100
+Subject: [PATCH 2/2] Decrease the required local work size.
+
+---
+ src/opencl/level1/sort/Sort.cpp | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/opencl/level1/sort/Sort.cpp b/src/opencl/level1/sort/Sort.cpp
+index ca0e162..97e3977 100644
+--- a/src/opencl/level1/sort/Sort.cpp
++++ b/src/opencl/level1/sort/Sort.cpp
+@@ -173,13 +173,13 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+     cl_kernel bottom_scan = clCreateKernel(prog, "bottom_scan", &err);
+     CL_CHECK_ERROR(err);
+ 
+-    // If the device doesn't support at least 256 work items in a
++    // If the device doesn't support at least 64 work items in a
+     // group, use a different kernel (TODO)
+-    if ( getMaxWorkGroupSize(ctx, reduce)      < 256 ||
+-         getMaxWorkGroupSize(ctx, top_scan)    < 256 ||
+-         getMaxWorkGroupSize(ctx, bottom_scan) < 256) {
++    if ( getMaxWorkGroupSize(ctx, reduce)      < 64 ||
++         getMaxWorkGroupSize(ctx, top_scan)    < 64 ||
++         getMaxWorkGroupSize(ctx, bottom_scan) < 64) {
+         cout << "Sort requires a device that supports a work group size " <<
+-          "of at least 256" << endl;
++          "of at least 64" << endl;
+         char atts[1024] = "GSize_Not_Supported";
+         // resultDB requires neg entry for every possible result
+         int passes = op.getOptionInt("passes");
+@@ -373,7 +373,7 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+         CL_CHECK_ERROR(err);
+         double total_sort = Timer::Stop(th, "total sort time");
+ 
+-        err = clEnqueueReadBuffer(queue, d_idata, true, 0, bytes, h_odata,
++        err = clEnqueueReadBuffer(queue, d_odata, true, 0, bytes, h_odata,
+                 0, NULL, &evTransfer.CLEvent());
+         CL_CHECK_ERROR(err);
+         err = clFinish(queue);
+-- 
+2.0.0
+
