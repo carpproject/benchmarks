@@ -2,7 +2,7 @@ diff --git a/opencl/srad/kernel/kernel_gpu_opencl_wrapper.c b/opencl/srad/kernel
 index 4a91c36..ce8366f 100755
 --- a/opencl/srad/kernel/kernel_gpu_opencl_wrapper.c
 +++ b/opencl/srad/kernel/kernel_gpu_opencl_wrapper.c
-opencl/srad/@@ -45,7 +45,7 @@ void
+@@ -45,7 +45,7 @@ void
  kernel_gpu_opencl_wrapper(	fp* image,											// input image
  							int Nr,												// IMAGE nbr of rows
  							int Nc,												// IMAGE nbr of cols
