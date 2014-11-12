@@ -31,7 +31,7 @@ PENCIL_TOOLS_HOME=
 # Path to PPCG repository
 PPCG_PATH=
 
-PENCIL_UTILS_HOME=
+PENCIL_UTIL_HOME=
 
 # Path to the OpenCL 1.1 SDK
 OPENCL_SDK=

@@ -17,7 +17,7 @@ OCL_EXE = ocl_srad
 
 ORIG_DATA = ${RODINIA_DIR}/data/srad/image.pgm
 
-PENCIL_INCLUDE = ${PENCIL_UTILS_HOME}/include/pencil.h
+PENCIL_INCLUDE = ${PENCIL_UTIL_HOME}/include/pencil.h
 
 pencil.h: ${PENCIL_INCLUDE}
 	cpp -D__PENCIL__ -P $^ -o $@

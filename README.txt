@@ -3,7 +3,7 @@ CARP project validation cases to demonstrate PENCIL.
 Requirements
 ------------
  * PENCIL toolchain: http://github.com/carpproject/pencil
- * PENCIL utils: http://github.com/carpproject/pencil-utils
+ * PENCIL util: http://github.com/carpproject/pencil-util
  * PPCG toolchain: http://repo.or.cz/w/ppcg.git
  * SHOC benchmark suite: http://github.com/vetter/shoc
  * Rodinia 3.0 benchmark suite: https://www.cs.virginia.edu/~skadron/wiki/rodinia/index.php/Main_Page
@@ -12,7 +12,7 @@ Installation
 ------------
  * VALIDATION_CASES_DIR - directory where validation_cases repository is cloned
  * PENCIL_TOOLS_HOME - directory where PENCIL toolchain is cloned.
- * PENCIL_UTILS_HOME - directory where PENCIL utils repository is cloned.
+ * PENCIL_UTIL_HOME - directory where PENCIL util repository is cloned.
  * PPCG_PATH - directory where PPCG is cloned
  * SHOC_DIR - directory where SHOC is cloned
  * RODINIA_DIR - directory where Rodinia is cloned
@@ -21,7 +21,7 @@ Installation
    file in PENCIL repository.
 
 1.1 Build the PENCIL runtime for your architecture:
-   % make -C ${PENCIL_PATH}/etc/runtime OCL_UTIL=${PPCG_PATH}/ocl_utilities.c ARCH=${YOUR_ARCH}
+   % make -C ${PENCIL_UTIL_HOME}/runtime OCL_UTIL=${PPCG_PATH}/ocl_utilities.c ARCH=${YOUR_ARCH}
 
 2. Clone SHOC and checkout the required version
    % git clone git@github.com:vetter/shoc.git ${SHOC_DIR}
@@ -52,7 +52,7 @@ Installation
    The following variables should be specified:
    ARCH - target architecture (ARCH=arm-none-linux-gnueabi-)
    PENCIL_TOOLS_HOME - path to PENCIL repository clone (PENCIL_TOOLS_HOME=/path/to/pencil/clone)
-   PENCIL_UTILS_HOME - path to PENCIL runtime (PENCIL_UTILS_HOME=/path/tp/pencil/utils)
+   PENCIL_UTIL_HOME - path to PENCIL util (PENCIL_UTIL_HOME=/path/to/pencil/util)
    PPCG_PATH - path to PPCG repository clone (PPCG_PATH=/path/to/ppcg/clone)
    OPENCL_SDK - optional path to OpenCL SDK
    BOARD - address of the target board (BOARD=user@12.34.56.78)

@@ -1,4 +1,4 @@
-PENCIL_RUNTIME=${PENCIL_UTILS_HOME}/runtime
+PENCIL_RUNTIME=${PENCIL_UTIL_HOME}/runtime
 
 run: ${UPLOAD_FILES}
 	../../scripts/run-on-board.sh $^

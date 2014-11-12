@@ -57,8 +57,6 @@ UPLOAD_FILES_ORIG=$(ORIG_BIN) orig/run.sh
 run-ellpackr: $(UPLOAD_FILES) ellpackr/run.sh
 	../../scripts/run-on-board.sh $^
 
-run: run-csr
-
 run-csr: $(UPLOAD_FILES) csr/run.sh
 	../../scripts/run-on-board.sh $^
 
@@ -73,6 +71,9 @@ clean:
 	rm -f *.o spmv-sp spmv-dp spmv_host.c spmv_kernel.cl spmv_kernel.h spmv.c spmv-ref.c
 
 include ../../scripts/benchmark-run.mk
+
+run:
+	@echo "Use make run-csr or make run-ellpackr"
 
 .FORCE:
 .PHONY: build ppcg clean all
