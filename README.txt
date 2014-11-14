@@ -8,6 +8,20 @@ Requirements
  * SHOC benchmark suite: http://github.com/vetter/shoc
  * Rodinia 3.0 benchmark suite: https://www.cs.virginia.edu/~skadron/wiki/rodinia/index.php/Main_Page
 
+   The following variables should be specified:
+   ARCH - target architecture (ARCH=arm-none-linux-gnueabi-)
+   PENCIL_TOOLS_HOME - path to PENCIL repository clone (PENCIL_TOOLS_HOME=/path/to/pencil/clone)
+   PENCIL_UTIL_HOME - path to PENCIL util (PENCIL_UTIL_HOME=/path/to/pencil/util)
+   PPCG_PATH - path to PPCG repository clone (PPCG_PATH=/path/to/ppcg/clone)
+   OPENCL_SDK - optional path to OpenCL SDK
+   BOARD - address of the target board (BOARD=user@12.34.56.78)
+   BOARD_DIR - directory on board used for execution (BOARD_DIR=/home/user/run)
+   BOARD_DATA_DIR - directory on board used to store benchmark data (BOARD_DATA_DIR=/home/user/data). Should be different from BOARD_DIR.
+   BOARD_LIB_DIR - directory on board used to install libraries (BOARD_LIB_DIR=/home/user/lib). Should be different from BOARD_DIR.
+   SHOC_DIR - directory where SHOC is cloned (SHOC_DIR=/path/to/shoc/clone)
+   RODINIA_DIR - directory where Rodinia is cloned (SHOC_DIR=/path/to/rodinia/clone)
+   EXECUTION_TIME_LIMIT - execution time limit for benchmark in seconds (EXECUTION_TIME_LIMIT=180)
+
 Installation
 ------------
  * VALIDATION_CASES_DIR - directory where validation_cases repository is cloned
@@ -19,9 +33,6 @@ Installation
 
 1. Clone and build PENCIL toolchain using build instructions from README.txt
    file in PENCIL repository.
-
-1.1 Build the PENCIL runtime for your architecture:
-   % make -C ${PENCIL_UTIL_HOME}/runtime OCL_UTIL=${PPCG_PATH}/ocl_utilities.c ARCH=${YOUR_ARCH}
 
 2. Clone SHOC and checkout the required version
    % git clone git@github.com:vetter/shoc.git ${SHOC_DIR}
@@ -44,27 +55,16 @@ Installation
    % patch -p1 < ${VALIDATION_CASES_DIR}/patches/ppcg/0001-PENCIL-runtime-support.patch
    % ./configure && make
 
-6. Create configurations file for the validation cases
+6. Build the PENCIL runtime for your architecture:
+   % make -C ${PENCIL_UTIL_HOME}/runtime OCL_UTIL=${PPCG_PATH}/ocl_utilities.c ARCH=${YOUR_ARCH}
+
+7. Create configurations file for the validation cases
    % cd ${VALIDATION_CASES_DIR}
    % cp config.orig config
    % vim config
 
-   The following variables should be specified:
-   ARCH - target architecture (ARCH=arm-none-linux-gnueabi-)
-   PENCIL_TOOLS_HOME - path to PENCIL repository clone (PENCIL_TOOLS_HOME=/path/to/pencil/clone)
-   PENCIL_UTIL_HOME - path to PENCIL util (PENCIL_UTIL_HOME=/path/to/pencil/util)
-   PPCG_PATH - path to PPCG repository clone (PPCG_PATH=/path/to/ppcg/clone)
-   OPENCL_SDK - optional path to OpenCL SDK
-   BOARD - address of the target board (BOARD=user@12.34.56.78)
-   BOARD_DIR - directory on board used for execution (BOARD_DIR=/home/user/run)
-   BOARD_DATA_DIR - directory on board used to store benchmark data (BOARD_DATA_DIR=/home/user/data). Should be different from BOARD_DIR.
-   BOARD_LIB_DIR - directory on board used to install libraries (BOARD_LIB_DIR=/home/user/lib). Should be different from BOARD_DIR.
-   SHOC_DIR - directory where SHOC is cloned (SHOC_DIR=/path/to/shoc/clone)
-   RODINIA_DIR - directory where Rodinia is cloned (SHOC_DIR=/path/to/rodinia/clone)
-   EXECUTION_TIME_LIMIT - execution time limit for benchmark in seconds (EXECUTION_TIME_LIMIT=180)
-
-Running the validation cases:
-
+Running the validation cases
+----------------------------
 The validation cases are designed to be used with autotuner program to
 determine the best set of PPCG options for the given application.
 Building with a single set of selected options is also possible.
