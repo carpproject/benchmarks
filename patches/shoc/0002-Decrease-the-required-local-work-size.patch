@@ -1,14 +1,14 @@
-From 9d0160a929b3fc2eb5616cf202ea27e762310631 Mon Sep 17 00:00:00 2001
+From f1ed02865fa01a5c33cafc505e48c5618c71f8f6 Mon Sep 17 00:00:00 2001
 From: Alexey Kravets <alexey.kravets@arm.com>
 Date: Tue, 16 Sep 2014 15:25:49 +0100
 Subject: [PATCH 2/2] Decrease the required local work size.
 
 ---
- src/opencl/level1/sort/Sort.cpp | 12 ++++++------
- 1 file changed, 6 insertions(+), 6 deletions(-)
+ src/opencl/level1/sort/Sort.cpp | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)
 
 diff --git a/src/opencl/level1/sort/Sort.cpp b/src/opencl/level1/sort/Sort.cpp
-index ca0e162..97e3977 100644
+index 737aedc..80c2859 100644
 --- a/src/opencl/level1/sort/Sort.cpp
 +++ b/src/opencl/level1/sort/Sort.cpp
 @@ -173,13 +173,13 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
@@ -30,7 +30,20 @@ index ca0e162..97e3977 100644
          char atts[1024] = "GSize_Not_Supported";
          // resultDB requires neg entry for every possible result
          int passes = op.getOptionInt("passes");
-@@ -373,7 +373,7 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+@@ -244,10 +244,10 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+     CL_CHECK_ERROR(err);
+ 
+     // Number of local work items per group
+-    const size_t local_wsize  = 256;
++    const size_t local_wsize  = 64;
+ 
+     // Number of global work items
+-    const size_t global_wsize = 16384; // i.e. 64 work groups
++    const size_t global_wsize = 4096; // i.e. 64 work groups
+     const size_t num_work_groups = global_wsize / local_wsize;
+ 
+     // Allocate device memory for local work group intermediate sums
+@@ -376,7 +376,7 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
          CL_CHECK_ERROR(err);
          double total_sort = Timer::Stop(th, "total sort time");
  
