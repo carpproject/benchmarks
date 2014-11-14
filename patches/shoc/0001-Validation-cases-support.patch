@@ -1,4 +1,4 @@
-From e9f0a759649b84e294447cbae747e5a64cadda7b Mon Sep 17 00:00:00 2001
+From b87800582a211e6aa973952eac6055507fe04cb4 Mon Sep 17 00:00:00 2001
 From: Alexey Kravets <alexey.kravets@arm.com>
 Date: Tue, 16 Sep 2014 13:56:10 +0100
 Subject: [PATCH 1/2] Validation cases support.
@@ -9,12 +9,12 @@ Subject: [PATCH 1/2] Validation cases support.
  src/common/PencilStencilFactory.cpp           | 23 ++++++++
  src/common/PencilStencilFactory.h             | 18 ++++++
  src/opencl/common/main.cpp                    |  1 +
- src/opencl/level1/sort/Sort.cpp               | 18 +++++-
+ src/opencl/level1/sort/Sort.cpp               | 23 ++++++++
  src/opencl/level1/spmv/Spmv.cpp               | 57 +++++++++++--------
  src/opencl/level1/stencil2d/Makefile.am       | 13 ++++-
  src/opencl/level1/stencil2d/Makefile.in       | 16 ++++--
  src/opencl/level1/stencil2d/Stencil2Dmain.cpp | 14 ++++-
- 10 files changed, 227 insertions(+), 31 deletions(-)
+ 10 files changed, 233 insertions(+), 30 deletions(-)
  create mode 100644 src/common/PencilStencil.cpp
  create mode 100644 src/common/PencilStencil.h
  create mode 100644 src/common/PencilStencilFactory.cpp
@@ -196,10 +196,24 @@ index 390be86..e00eeef 100644
          op.addOption("size", OPT_VECINT, "1", "specify problem size", 's');
          op.addOption("infoDevices", OPT_BOOL, "",
 diff --git a/src/opencl/level1/sort/Sort.cpp b/src/opencl/level1/sort/Sort.cpp
-index 13bb5e4..737aedc 100644
+index 13bb5e4..e1fe259 100644
 --- a/src/opencl/level1/sort/Sort.cpp
 +++ b/src/opencl/level1/sort/Sort.cpp
-@@ -129,7 +129,9 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+@@ -52,6 +52,13 @@ bool verifySort(unsigned int *keys, const size_t size)
+ #endif
+         }
+     }
++
++    // This indicates that output data was corrupted (by unsuccessful
++    // kernel launch for example).
++    if (keys[0] == keys[size - 1])
++    {
++        passed = false;
++    }
+     cout << "Test ";
+     if (passed)
+         cout << "Passed" << endl;
+@@ -129,7 +136,9 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
  {
      int err = 0;
  
@@ -209,7 +223,7 @@ index 13bb5e4..737aedc 100644
      cl_program prog = clCreateProgramWithSource(ctx,
                                                  1,
                                                  &cl_source_sort,
-@@ -216,11 +218,14 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+@@ -216,6 +225,9 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
      CL_CHECK_ERROR(err);
  
      // Initialize host memory
@@ -219,13 +233,7 @@ index 13bb5e4..737aedc 100644
      cout << "Initializing host memory." << endl;
      for (int i = 0; i < size; i++)
      {
-         h_idata[i] = i % 16; // Fill with some pattern
--        h_odata[i] = -1;
-+        h_odata[i] = i % 23;
-     }
- 
-     // The radix width in bits
-@@ -228,6 +233,9 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+@@ -228,6 +240,9 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
      const int num_digits = (int)pow((double)2, radix_width); // n possible digits
  
      // Allocate device memory for input array
@@ -235,7 +243,7 @@ index 13bb5e4..737aedc 100644
      cl_mem d_idata = clCreateBuffer(ctx, CL_MEM_READ_WRITE, bytes, NULL, &err);
      CL_CHECK_ERROR(err);
  
-@@ -277,6 +285,8 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+@@ -277,6 +292,8 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
      err = clSetKernelArg(bottom_scan, 4, local_wsize * 2 * sizeof(T), NULL);
      CL_CHECK_ERROR(err);
  
@@ -244,7 +252,7 @@ index 13bb5e4..737aedc 100644
      // Copy data to GPU
      cout << "Copying input data to device." << endl;
      Event evTransfer("PCIe transfer");
-@@ -347,17 +357,20 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+@@ -347,17 +364,20 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
              err = clEnqueueNDRangeKernel(queue, reduce, 1, NULL,
                          &global_wsize, &local_wsize, 0, NULL, NULL);
  
@@ -265,7 +273,7 @@ index 13bb5e4..737aedc 100644
          }
          err = clFinish(queue);
          CL_CHECK_ERROR(err);
-@@ -382,6 +395,7 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+@@ -382,6 +402,7 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
          double avgTime = total_sort;
          double gbs = (double) (size * sizeof(T)) / (1000. * 1000. * 1000.);
          sprintf(atts, "%d_items", size);
@@ -273,7 +281,7 @@ index 13bb5e4..737aedc 100644
          resultDB.AddResult(testName, atts, "GB/s", gbs / (avgTime));
          resultDB.AddResult(testName+"_PCIe", atts, "GB/s",
                  gbs / (avgTime + totalTransfer));
-@@ -389,6 +403,8 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+@@ -389,6 +410,8 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
                  totalTransfer / avgTime);
      }
  

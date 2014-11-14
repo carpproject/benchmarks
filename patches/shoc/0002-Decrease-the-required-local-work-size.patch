@@ -1,4 +1,4 @@
-From f1ed02865fa01a5c33cafc505e48c5618c71f8f6 Mon Sep 17 00:00:00 2001
+From c89ff2f76a56221ed523ab8bfc962d7cef2871d1 Mon Sep 17 00:00:00 2001
 From: Alexey Kravets <alexey.kravets@arm.com>
 Date: Tue, 16 Sep 2014 15:25:49 +0100
 Subject: [PATCH 2/2] Decrease the required local work size.
@@ -8,10 +8,10 @@ Subject: [PATCH 2/2] Decrease the required local work size.
  1 file changed, 8 insertions(+), 8 deletions(-)
 
 diff --git a/src/opencl/level1/sort/Sort.cpp b/src/opencl/level1/sort/Sort.cpp
-index 737aedc..80c2859 100644
+index e1fe259..db807de 100644
 --- a/src/opencl/level1/sort/Sort.cpp
 +++ b/src/opencl/level1/sort/Sort.cpp
-@@ -173,13 +173,13 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+@@ -180,13 +180,13 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
      cl_kernel bottom_scan = clCreateKernel(prog, "bottom_scan", &err);
      CL_CHECK_ERROR(err);
  
@@ -30,7 +30,7 @@ index 737aedc..80c2859 100644
          char atts[1024] = "GSize_Not_Supported";
          // resultDB requires neg entry for every possible result
          int passes = op.getOptionInt("passes");
-@@ -244,10 +244,10 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+@@ -251,10 +251,10 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
      CL_CHECK_ERROR(err);
  
      // Number of local work items per group
@@ -39,11 +39,11 @@ index 737aedc..80c2859 100644
  
      // Number of global work items
 -    const size_t global_wsize = 16384; // i.e. 64 work groups
-+    const size_t global_wsize = 4096; // i.e. 64 work groups
++    const size_t global_wsize = local_wsize * 64; // i.e. 64 work groups
      const size_t num_work_groups = global_wsize / local_wsize;
  
      // Allocate device memory for local work group intermediate sums
-@@ -376,7 +376,7 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
+@@ -383,7 +383,7 @@ void runTest(const string& testName, cl_device_id dev, cl_context ctx,
          CL_CHECK_ERROR(err);
          double total_sort = Timer::Stop(th, "total sort time");
  
