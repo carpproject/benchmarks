@@ -590,7 +590,7 @@ index 9f7920a..80a8d30 100644
 +	p = isl_printer_end_line(p);
 +
 +	p = isl_printer_start_line(p);
-+	p = isl_printer_print_str(p, "pencil_init();");
++	p = isl_printer_print_str(p, "pencil_init(PENCIL_TARGET_DEVICE_DYNAMIC);");
 +	p = isl_printer_end_line(p);
 +
 +	p = isl_printer_start_line(p);

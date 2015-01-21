@@ -84,7 +84,7 @@ int main( int argc, char *argv[] )
     check = 1;
   }
 
-  pencil_init();
+  pencil_init(PENCIL_TARGET_DEVICE_DYNAMIC);
   fscanf(fp,"%d",&no_of_nodes);
 
   int *edge_start_no = (int *)pencil_alloc( sizeof(int) * no_of_nodes); //index to edge-array. starting point.

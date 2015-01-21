@@ -95,7 +95,7 @@ int main(int argc, char *argv[]){
   fscanf(file,"%d", &N);
   assert(N > 0);
 
-  pencil_init();
+  pencil_init(PENCIL_TARGET_DEVICE_DYNAMIC);
 
   uint *keys         = (uint *)malloc(sizeof(uint)*N);
   uint *ssorted_keys = (uint *)malloc(sizeof(uint)*N);

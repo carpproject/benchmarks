@@ -182,7 +182,7 @@ int main(int argc, char *argv []){
   int   Ne = Nr*Nc;
   int   NeROI = Nr*Nc;// number of elements in ROI, ROI size
 
-  pencil_init();
+  pencil_init(PENCIL_TARGET_DEVICE_DYNAMIC);
 
   /*surrounding pixel indices*/
   int *iN = pencil_alloc(sizeof(int*)*Nr);

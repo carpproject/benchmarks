@@ -254,7 +254,7 @@ void parseCommandLine(int argc, char *argv[]) {
 int main(int argc, char *argv[]) {
     parseCommandLine(argc, argv);
 
-    pencil_init();
+    pencil_init(PENCIL_TARGET_DEVICE_DYNAMIC);
 
     if (options.benchmark == bm_csr) {
         testCsr(options.size);
